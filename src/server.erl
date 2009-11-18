@@ -13,19 +13,27 @@
 
 %% --------------------------------------------------------------------
 %% External exports
--export([]).
+-export([start/0, stop/0, register/1, info/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {}).
+-record(state, {players, matches}).
 
 %% ====================================================================
 %% External functions
 %% ====================================================================
+start() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+stop() ->
+    gen_server:cast(?MODULE, stop).
+
 register(Nick) ->
     gen_server:call(?MODULE, {register, Nick}).
 
+info() ->
+    gen_server:call(?MODULE, info).
 
 %% ====================================================================
 %% Server functions
@@ -40,7 +48,8 @@ register(Nick) ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+    {ok, #state{players=ets:new(players, []),
+                matches=ets:new(matches, [])}}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -52,9 +61,21 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_call(Request, From, State) ->
-    Reply = ok,
+handle_call({register, Nick}, From, State) ->
+    Tab = State#state.players,
+    case ets:lookup(Tab, Nick) of
+        [{Nick, _ClientPid}] ->
+            {reply, {name_exists, Nick}, State};
+        _ ->
+            ets:insert(Tab, {Nick, From}),
+            {reply, ok, State}
+    end;
+
+handle_call(info, _From, State) ->
+    PlayerList = ets:tab2list(State#state.players),
+    Reply = {ok, players, lists:map(fun({Nick, _})->Nick end, PlayerList)},
     {reply, Reply, State}.
+
 
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
@@ -63,7 +84,7 @@ handle_call(Request, From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast(Msg, State) ->
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %% --------------------------------------------------------------------
@@ -73,7 +94,7 @@ handle_cast(Msg, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %% --------------------------------------------------------------------
@@ -81,7 +102,7 @@ handle_info(Info, State) ->
 %% Description: Shutdown the server
 %% Returns: any (ignored by gen_server)
 %% --------------------------------------------------------------------
-terminate(Reason, State) ->
+terminate(_Reason, _State) ->
     ok.
 
 %% --------------------------------------------------------------------
@@ -89,7 +110,7 @@ terminate(Reason, State) ->
 %% Purpose: Convert process state when code is changed
 %% Returns: {ok, NewState}
 %% --------------------------------------------------------------------
-code_change(OldVsn, State, Extra) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% --------------------------------------------------------------------
