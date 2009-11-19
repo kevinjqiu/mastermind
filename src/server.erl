@@ -13,27 +13,37 @@
 
 %% --------------------------------------------------------------------
 %% External exports
--export([start/0, stop/0, register/1, info/0]).
+-export([start/0, stop/0, register/1, show_players/0, show_rooms/0, enter_room/1, whoami/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {players, matches}).
+-record(state, {players, rooms}).
+%% -record(room_details, {player1, player2}).
 
 %% ====================================================================
 %% External functions
 %% ====================================================================
 start() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    gen_server:cast(?MODULE, stop).
+    cast(stop).
 
 register(Nick) ->
-    gen_server:call(?MODULE, {register, Nick}).
+    call({register, Nick}).
 
-info() ->
-    gen_server:call(?MODULE, info).
+show_players() ->
+    call(show_players).
+
+show_rooms() ->
+	call(show_rooms).
+ 
+enter_room(RoomName) ->
+	call({enter_room, RoomName}).
+
+whoami() ->
+	call(whoami).
 
 %% ====================================================================
 %% Server functions
@@ -49,7 +59,7 @@ info() ->
 %% --------------------------------------------------------------------
 init([]) ->
     {ok, #state{players=ets:new(players, []),
-                matches=ets:new(matches, [])}}.
+                rooms=ets:new(rooms, [])}}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -61,21 +71,40 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_call({register, Nick}, From, State) ->
+handle_call({register, Nick}, {ClientPid, _Tag}, State) ->
     Tab = State#state.players,
-    case ets:lookup(Tab, Nick) of
-        [{Nick, _ClientPid}] ->
-            {reply, {name_exists, Nick}, State};
+    case ets:lookup(Tab, ClientPid) of
+        [{_, _Nick}] ->
+			{reply, {fail, "You already registered"}, State};
         _ ->
-            ets:insert(Tab, {Nick, From}),
-            {reply, ok, State}
+			case ets:match(Tab, {'$1', Nick}) of
+				[[_ClientPid]] ->
+					{reply, {fail, string:concat(Nick, " has been taken")}, State};
+				_ ->
+			        ets:insert(Tab, {ClientPid, Nick}),
+            		{reply, ok, State}
+			end
     end;
 
-handle_call(info, _From, State) ->
-    PlayerList = ets:tab2list(State#state.players),
-    Reply = {ok, players, lists:map(fun({Nick, _})->Nick end, PlayerList)},
-    {reply, Reply, State}.
+handle_call(show_players, _From, State) ->
+    {reply, {ok, ets:tab2list(State#state.players)}, State};
 
+%% handle_call(show_rooms, _From, State) ->
+%% 	RoomList = ets:tab2list(State#state.rooms),
+%% 	Reply = {ok, lists:map(fun({Room, _})->Room end, RoomList)},
+%% 	{reply, Reply, State};
+
+%% handle_call({enter_room, RoomName}, _From, State) ->
+%% 	ok;
+
+handle_call(whoami, {ClientPid, _Tag}, State) ->
+	PlayersTab = State#state.players,
+	case ets:lookup(PlayersTab, ClientPid) of
+		[{_, Nick}] ->
+			{reply, {ok, Nick}, State};
+		_ ->
+			{reply, i_dont_know, State}
+	end.
 
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
@@ -116,4 +145,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
+call(Request) ->
+	gen_server:call({global, ?MODULE}, Request).
+
+cast(Request) ->
+	gen_server:cast({global, ?MODULE}, Request).
 
