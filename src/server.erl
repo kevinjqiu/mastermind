@@ -13,13 +13,15 @@
 
 %% --------------------------------------------------------------------
 %% External exports
--export([start/0, stop/0, register/1, show_players/0, show_rooms/0, enter_room/1, whoami/0]).
+-export([start/0, stop/0, 
+		 register/1, show_players/0, whoami/0, 
+		 create_game/1, show_games/0, join_game/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {players, rooms}).
-%% -record(room_details, {player1, player2}).
+-record(state, {players, games}).
+-record(game, {player1, player2, status}).
 
 %% ====================================================================
 %% External functions
@@ -35,15 +37,18 @@ register(Nick) ->
 
 show_players() ->
     call(show_players).
-
-show_rooms() ->
-	call(show_rooms).
  
-enter_room(RoomName) ->
-	call({enter_room, RoomName}).
-
 whoami() ->
 	call(whoami).
+
+create_game(GameName) ->
+	call({create_game, GameName}).
+
+show_games() ->
+	call(show_games).
+
+join_game(GameName) ->
+	call({join_game, GameName}).
 
 %% ====================================================================
 %% Server functions
@@ -59,7 +64,7 @@ whoami() ->
 %% --------------------------------------------------------------------
 init([]) ->
     {ok, #state{players=ets:new(players, []),
-                rooms=ets:new(rooms, [])}}.
+                games=ets:new(games, [])}}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -73,38 +78,75 @@ init([]) ->
 %% --------------------------------------------------------------------
 handle_call({register, Nick}, {ClientPid, _Tag}, State) ->
     Tab = State#state.players,
-    case ets:lookup(Tab, ClientPid) of
-        [{_, _Nick}] ->
+	case is_client_registered(Tab, ClientPid) of
+		{true, _Nick} ->
 			{reply, {fail, "You already registered"}, State};
-        _ ->
+		false ->
 			case ets:match(Tab, {'$1', Nick}) of
 				[[_ClientPid]] ->
-					{reply, {fail, string:concat(Nick, " has been taken")}, State};
+					{reply, {error, nickname_exists}, State};
 				_ ->
 			        ets:insert(Tab, {ClientPid, Nick}),
             		{reply, ok, State}
 			end
-    end;
+	end;
 
 handle_call(show_players, _From, State) ->
     {reply, {ok, ets:tab2list(State#state.players)}, State};
 
-%% handle_call(show_rooms, _From, State) ->
-%% 	RoomList = ets:tab2list(State#state.rooms),
-%% 	Reply = {ok, lists:map(fun({Room, _})->Room end, RoomList)},
-%% 	{reply, Reply, State};
+handle_call({create_game, GameName}, {ClientPid, _Tag}, State) ->
+	PlayersTab = State#state.players,
+	case is_client_registered(PlayersTab, ClientPid) of
+		{true, Nick} ->
+			GamesTab = State#state.games,
+			case is_game_registered(GamesTab, GameName) of
+				{true, _} ->
+					{reply, {error, game_name_exists}, State};
+				_ ->
+					GameDetails = #game{player1={ClientPid, Nick}, status=open},
+					ets:insert(GamesTab, {GameName, GameDetails}),
+					{reply, ok, State}
+			end;
+		_ ->
+			{reply, {error, not_registered}, State}
+	end;
 
-%% handle_call({enter_room, RoomName}, _From, State) ->
-%% 	ok;
+handle_call(show_games, _From, State) ->
+	{reply, {ok, ets:tab2list(State#state.games)}, State};
 
 handle_call(whoami, {ClientPid, _Tag}, State) ->
 	PlayersTab = State#state.players,
-	case ets:lookup(PlayersTab, ClientPid) of
-		[{_, Nick}] ->
+	case is_client_registered(PlayersTab, ClientPid) of
+		{true, Nick} ->
 			{reply, {ok, Nick}, State};
 		_ ->
-			{reply, i_dont_know, State}
-	end.
+			{reply, {error, i_dont_know}, State}
+	end;
+
+handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
+	case is_client_registered(State#state.players, ClientPid) of
+		{true, Nick} ->
+			case is_game_registered(State#state.games, GameName) of
+				{true, GameDetails} ->
+					case GameDetails#game.player1 of
+						{ClientPid, Nick} ->
+							{reply, {error, cant_play_with_self}, State};
+						_ ->
+							NewGameDetails = GameDetails#game{player2={ClientPid, Nick}, status=in_progress},
+							ets:insert(State#state.games, {GameName, NewGameDetails}),
+							{reply, ok, State}
+							%% XXX: hand over to a judge process
+						end;
+				_ ->
+					{reply, {error, game_not_exist}, State}
+			end;
+		_ ->
+			{reply, {error, not_registered}, State}
+	end;
+
+handle_call(Req, From, _State) ->
+	io:format("Unknown request ~p from ~p~n", [Req, From]).
+
 
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
@@ -151,3 +193,20 @@ call(Request) ->
 cast(Request) ->
 	gen_server:cast({global, ?MODULE}, Request).
 
+is_client_registered(PlayersTab, ClientPid) ->
+    case ets:lookup(PlayersTab, ClientPid) of
+        [{_, Nick}] ->
+			{true, Nick};
+        _ ->
+			false
+    end.
+	
+is_game_registered(GamesTab, GameName) ->
+	case ets:lookup(GamesTab, GameName) of
+		[{_, GameDetails}] ->
+			{true, GameDetails};
+		_ ->
+			false
+	end.
+
+	
