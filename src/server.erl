@@ -15,7 +15,8 @@
 %% External exports
 -export([start/0, stop/0, 
 		 register/1, show_players/0, whoami/0, 
-		 create_game/1, show_games/0, join_game/1]).
+		 create_game/1, show_games/0, join_game/1,
+		 set_code/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -49,6 +50,9 @@ show_games() ->
 
 join_game(GameName) ->
 	call({join_game, GameName}).
+
+set_code(GameName, Code) ->
+	call({set_code, GameName, Code}).
 
 %% ====================================================================
 %% Server functions
@@ -135,7 +139,6 @@ handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
 							NewGameDetails = GameDetails#game{player2={ClientPid, Nick}, status=in_progress},
 							ets:insert(State#state.games, {GameName, NewGameDetails}),
 							{reply, ok, State}
-							%% XXX: hand over to a judge process
 						end;
 				_ ->
 					{reply, {error, game_not_exist}, State}
@@ -143,6 +146,32 @@ handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
 		_ ->
 			{reply, {error, not_registered}, State}
 	end;
+
+handle_call({set_code, GameName, Code}, {ClientPid, _Tag}, State) ->
+	case is_client_registered(State#state.players, ClientPid) of
+		{true, Nick} ->
+			case is_game_registered(State#state.games, GameName) of
+				{true, GameDetails} ->
+					case GameDetails#game.player1 of
+						{ClientPid, Nick} ->
+							%% set player1's code to Code
+							ok;
+						_ ->
+							case GameDetails#game.player2 of
+								{ClientPid, Nick} ->
+									%% set player2's code to Code
+									ok;
+								_ ->
+									{reply, {error, you_arnt_in_the_game}, State}
+							end
+					end;
+				_ ->
+					{reply, {error, game_not_exist}, State}
+			end;
+		_ ->
+			{reply, {error, not_registered}, State}
+	end;
+			
 
 handle_call(Req, From, _State) ->
 	io:format("Unknown request ~p from ~p~n", [Req, From]).
