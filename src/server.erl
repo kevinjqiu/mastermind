@@ -292,29 +292,66 @@ join(GameName, GameDetails, ClientPid, Nick, State)->
 new_player(ClientPid, Nick) ->
 	{ClientPid, Nick, undefined, 0}.
 
-alter_gamedetails(State, GameName, NewGameDetails) ->
+save_gamedetails(State, GameName, NewGameDetails) ->
 	ets:insert(State#state.games, {GameName, NewGameDetails}).
 
+alter_gamedetails(GameDetails, Key, Value) ->
+	IsPlayerCodeSet = fun(Player) ->
+							  case Player of
+								  {_, _, undefined, _} ->
+									  false;
+								  _ ->
+									  true
+							  end
+					  end,	
+	case Key of
+		player1 ->
+			case IsPlayerCodeSet(Value) and IsPlayerCodeSet(GameDetails#game.player2) of
+				true ->
+					GameDetails#game{player1=Value, status=in_progress};
+				_ ->
+					GameDetails#game{player1=Value}
+			end;
+		player2 ->
+			case IsPlayerCodeSet(Value) and IsPlayerCodeSet(GameDetails#game.player1) of
+				true ->
+					GameDetails#game{player2=Value, status=in_progress};
+				_ ->
+					GameDetails#game{player2=Value}
+			end;
+		status ->
+			GameDetails#game{status=Value}
+	end.
+	
+
 set_code(State, GameName, GameDetails, ClientPid, Nick, Code) ->
+	SetCodeToPlayer = fun(Player) ->
+					  case Player of
+						  {_ClientPid, _Nick, undefined, 0} ->
+							  {_ClientPid, _Nick, Code, 0};
+						  _ ->
+							  {error, code_already_set}
+					  end
+			  end,
+
 	case GameDetails#game.status of
 		open ->
 			{error, waiting_for_opponent};
 		setup ->
-			case GameDetails#game.player1 of
-				{ClientPid, Nick, undefined, 0} ->
-					%% XXX: Set game status to in_progress if necessary
-					NewGameDetails = GameDetails#game{player1={ClientPid, Nick, Code, 0}},
-					alter_gamedetails(State, GameName, NewGameDetails),
+			case which_player_in_game(GameDetails, ClientPid, Nick) of
+				player1 ->
+					save_gamedetails(
+					  State, GameName, 
+					  alter_gamedetails(GameDetails, player1, SetCodeToPlayer(GameDetails#game.player1))),
+					%% XXX: do 'case' on the return of ets:insert()?
 					ok;
-				_ ->
-					case GameDetails#game.player2 of
-						{ClientPid, Nick, undefined, 0} ->
-							NewGameDetails = GameDetails#game{player2={ClientPid, Nick, Code, 0}},
-							alter_gamedetails(State, GameName, NewGameDetails),
-							ok;
-						_ ->
-							{error, unable_to_complete}
-					end
+				player2 ->
+					save_gamedetails(
+					  State, GameName, 
+					  alter_gamedetails(GameDetails, player2, SetCodeToPlayer(GameDetails#game.player2))),
+					ok;
+				{error, Reason} ->
+					{error, Reason}
 			end;
 		_ ->
 			{error, game_already_started}
@@ -349,3 +386,17 @@ get_digit_list(Num, DigitList) ->
 		_ ->
 			get_digit_list(Num div 10, DigitList) ++ [Num rem 10]
 	end.
+
+which_player_in_game(GameDetails, ClientPid, Nick) ->
+	case GameDetails#game.player1 of
+		{ClientPid, Nick, _, _} ->
+			player1;
+		_ ->
+			case GameDetails#game.player2 of
+				{ClientPid, Nick, _, _} ->
+					player2;
+				_ ->
+					{error, not_in_game}
+			end
+	end.
+
