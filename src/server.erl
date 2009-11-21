@@ -26,8 +26,8 @@
 	                      %% where GameDetails is of record 'game'
 	   ).
 
--record(game, {player1, %% player1 is of tuple {ClientPid, Nick, Code, Probes} 
-			   player2, %% player2 is of the same type of tuple as player1 
+-record(game, {player1=undefined, %% player1 is of tuple {ClientPid, Nick, Code, Probes} 
+			   player2=undefined, %% player2 is of the same type of tuple as player1 
 			   status   %% status is of {open, setup, in_progress, completed}
 			  }).
 
@@ -114,7 +114,7 @@ handle_call({create_game, GameName}, {ClientPid, _Tag}, State) ->
 				{true, _} ->
 					fail(game_name_exists, State);
 				_ ->
-					GameDetails = #game{player1={ClientPid, Nick}, status=open},
+					GameDetails = #game{player1={ClientPid, Nick, undefined, 0}, status=open},
 					ets:insert(GamesTab, {GameName, GameDetails}),
 					ok(State)
 			end;
@@ -135,54 +135,26 @@ handle_call(whoami, {ClientPid, _Tag}, State) ->
 	end;
 
 handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
-	case is_client_registered(State#state.players, ClientPid) of
-		{true, Nick} ->
-			case is_game_registered(State#state.games, GameName) of
-				{true, GameDetails} ->
-					case GameDetails#game.player1 of
-						{ClientPid, Nick, _, _} ->
-							fail(cant_play_with_self, State);
-						_ ->
-							case GameDetails#game.player2 of
-								undefined ->
-									NewGameDetails = GameDetails#game{player2={ClientPid, Nick}, status=in_progress},
-									ets:insert(State#state.games, {GameName, NewGameDetails}),
-									ok(State);
-								_ ->
-									fail(game_is_full, State)
-							end
-						end;
-				_ ->
-					fail(game_not_exist, State)
+	case get_details(State, GameName, ClientPid) of
+		{ok, nick, Nick, game, GameDetails} ->
+			case join(GameName, GameDetails, ClientPid, Nick, State) of
+				ok ->
+					ok(State);
+				Error ->
+					fail(Error, State)
 			end;
-		_ ->
-			fail(not_registered, State)
+		Error ->
+			fail(Error, State)
 	end;
 
-%%
-%% Find the GameDetails of the specified game
 handle_call({set_code, GameName, Code}, {ClientPid, _Tag}, State) ->
-	case is_client_registered(State#state.players, ClientPid) of
-		{true, Nick} ->
-			case is_game_registered(State#state.games, GameName) of
-				{true, GameDetails} ->
-					case GameDetails#game.player1 of
-						{ClientPid, Nick, _, Probes} ->
-							NewGameDetails = GameDetails#game{player1={ClientPid, Nick, Code, Probes}},
-							ets:insert(State#state.games, {GameName, NewGameDetails}),
-							ok(State);
-						_ ->
-							case GameDetails#game.player2 of
-								{ClientPid, Nick, _, Probes} ->
-									NewGameDetails = GameDetails#game{player2={ClientPid, Nick, Code, Probes}},
-									ets:insert(State#state.games, {GameName, NewGameDetails}),
-									ok(State);
-								_ ->
-									fail(you_arent_in_the_game, State)
-							end
-					end;
-				_ ->
-					fail(game_not_exist, State)
+	case get_details(State, GameName, ClientPid) of
+		{ok, nick, Nick, game, GameDetails} -> 
+			case set_code(State, GameName, GameDetails, ClientPid, Nick, Code) of
+				ok ->
+					ok(State);
+				Error ->
+					fail(Error, State)
 			end;
 		_ ->
 			fail(not_registered, State)
@@ -263,3 +235,63 @@ ok(State) ->
 ok(Return, State) ->
 	{reply, {ok, Return}, State}.
 
+get_details(State, GameName, ClientPid) ->
+	PlayersTab = State#state.players,
+	case is_client_registered(PlayersTab, ClientPid) of
+		false ->
+			{error, not_registered};
+		{true, Nick} ->
+			GamesTab = State#state.games,
+			case is_game_registered(GamesTab, GameName) of
+				false ->
+					{error, game_not_exist};
+				{true, GameDetails} ->
+					{ok, nick, Nick, game, GameDetails}
+			end
+	end.
+
+join(GameName, GameDetails, ClientPid, Nick, State)->
+	case GameDetails#game.player1 of
+		{ClientPid, Nick, _, _} ->
+			{error, cant_play_with_self};
+		_ ->
+			case GameDetails#game.player2 of
+				undefined ->
+					NewGameDetails = GameDetails#game{player2={ClientPid, Nick, undefined, 0}, status=setup},
+					ets:insert(State#state.games, {GameName, NewGameDetails}),
+					ok;
+				_ ->
+					{error, game_is_full}
+			end
+	end.
+
+alter_gamedetails(State, GameName, NewGameDetails) ->
+	ets:insert(State#state.games, {GameName, NewGameDetails}).
+
+set_code(State, GameName, GameDetails, ClientPid, Nick, Code) ->
+	case GameDetails#game.status of
+		open ->
+			{error, waiting_for_opponent};
+		setup ->
+			case GameDetails#game.player1 of
+				{ClientPid, Nick, undefined, 0} ->
+					NewGameDetails = GameDetails#game{player1={ClientPid, Nick, Code, 0}},
+					alter_gamedetails(State, GameName, NewGameDetails),
+					ok;
+				_ ->
+					case GameDetails#game.player2 of
+						{ClientPid, Nick, undefined, 0} ->
+							NewGameDetails = GameDetails#game{player2={ClientPid, Nick, Code, 0}},
+							alter_gamedetails(State, GameName, NewGameDetails),
+							ok;
+						_ ->
+							{error, unable_to_complete}
+					end
+			end;
+		_ ->
+			{error, game_already_started}
+	end.
+
+			
+			
+			
