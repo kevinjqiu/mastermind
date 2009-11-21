@@ -114,7 +114,7 @@ handle_call({create_game, GameName}, {ClientPid, _Tag}, State) ->
 				{true, _} ->
 					fail(game_name_exists, State);
 				_ ->
-					GameDetails = #game{player1={ClientPid, Nick, undefined, 0}, status=open},
+					GameDetails = #game{player1=new_player(ClientPid, Nick), status=open},
 					ets:insert(GamesTab, {GameName, GameDetails}),
 					ok(State)
 			end;
@@ -257,13 +257,16 @@ join(GameName, GameDetails, ClientPid, Nick, State)->
 		_ ->
 			case GameDetails#game.player2 of
 				undefined ->
-					NewGameDetails = GameDetails#game{player2={ClientPid, Nick, undefined, 0}, status=setup},
+					NewGameDetails = GameDetails#game{player2=new_player(ClientPid, Nick), status=setup},
 					ets:insert(State#state.games, {GameName, NewGameDetails}),
 					ok;
 				_ ->
 					{error, game_is_full}
 			end
 	end.
+
+new_player(ClientPid, Nick) ->
+	{ClientPid, Nick, undefined, 0}.
 
 alter_gamedetails(State, GameName, NewGameDetails) ->
 	ets:insert(State#state.games, {GameName, NewGameDetails}).
