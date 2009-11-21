@@ -14,6 +14,8 @@
 		 create_game/1, show_games/0, join_game/1,
 		 set_code/2]).
 
+%%-export([rpc/4]).
+
 %%
 %% API Functions
 %%
@@ -67,7 +69,7 @@ show_games() ->
 	end.
 
 set_code(Game, Code) ->
-	case server:set_code_for_game(Game, Code) of
+	case server:set_code(Game, Code) of
 		ok ->
 			io:format("Your code has been set~n");
 		Response ->

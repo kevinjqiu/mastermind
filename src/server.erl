@@ -21,8 +21,15 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {players, games}).
--record(game, {player1, player2, status}).
+-record(state, {players,  %% is a ETS Tab of players {ClientPid, Nick} 
+				games}    %% is a ETS Tab of games {GameName, GameDetails}
+	                      %% where GameDetails is of record 'game'
+	   ).
+
+-record(game, {player1, %% player1 is of tuple {ClientPid, Nick, Code, Probes} 
+			   player2, %% player2 is of the same type of tuple as player1 
+			   status   %% status is of {open, setup, in_progress, completed}
+			  }).
 
 %% ====================================================================
 %% External functions
@@ -84,19 +91,19 @@ handle_call({register, Nick}, {ClientPid, _Tag}, State) ->
     Tab = State#state.players,
 	case is_client_registered(Tab, ClientPid) of
 		{true, _Nick} ->
-			{reply, {fail, "You already registered"}, State};
+			fail(already_registered, State);
 		false ->
 			case ets:match(Tab, {'$1', Nick}) of
 				[[_ClientPid]] ->
-					{reply, {error, nickname_exists}, State};
+					fail(nickname_exists, State);
 				_ ->
 			        ets:insert(Tab, {ClientPid, Nick}),
-            		{reply, ok, State}
+					ok(State)
 			end
 	end;
 
 handle_call(show_players, _From, State) ->
-    {reply, {ok, ets:tab2list(State#state.players)}, State};
+	ok(ets:tab2list(State#state.players), State);
 
 handle_call({create_game, GameName}, {ClientPid, _Tag}, State) ->
 	PlayersTab = State#state.players,
@@ -105,26 +112,26 @@ handle_call({create_game, GameName}, {ClientPid, _Tag}, State) ->
 			GamesTab = State#state.games,
 			case is_game_registered(GamesTab, GameName) of
 				{true, _} ->
-					{reply, {error, game_name_exists}, State};
+					fail(game_name_exists, State);
 				_ ->
 					GameDetails = #game{player1={ClientPid, Nick}, status=open},
 					ets:insert(GamesTab, {GameName, GameDetails}),
-					{reply, ok, State}
+					ok(State)
 			end;
 		_ ->
 			{reply, {error, not_registered}, State}
 	end;
 
 handle_call(show_games, _From, State) ->
-	{reply, {ok, ets:tab2list(State#state.games)}, State};
+	ok(ets:tab2list(State#state.games), State);
 
 handle_call(whoami, {ClientPid, _Tag}, State) ->
 	PlayersTab = State#state.players,
 	case is_client_registered(PlayersTab, ClientPid) of
 		{true, Nick} ->
-			{reply, {ok, Nick}, State};
+			ok(Nick, State);
 		_ ->
-			{reply, {error, i_dont_know}, State}
+			fail(i_dont_know, State)
 	end;
 
 handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
@@ -133,43 +140,52 @@ handle_call({join_game, GameName}, {ClientPid, _Tag}, State) ->
 			case is_game_registered(State#state.games, GameName) of
 				{true, GameDetails} ->
 					case GameDetails#game.player1 of
-						{ClientPid, Nick} ->
-							{reply, {error, cant_play_with_self}, State};
+						{ClientPid, Nick, _, _} ->
+							fail(cant_play_with_self, State);
 						_ ->
-							NewGameDetails = GameDetails#game{player2={ClientPid, Nick}, status=in_progress},
-							ets:insert(State#state.games, {GameName, NewGameDetails}),
-							{reply, ok, State}
+							case GameDetails#game.player2 of
+								undefined ->
+									NewGameDetails = GameDetails#game{player2={ClientPid, Nick}, status=in_progress},
+									ets:insert(State#state.games, {GameName, NewGameDetails}),
+									ok(State);
+								_ ->
+									fail(game_is_full, State)
+							end
 						end;
 				_ ->
-					{reply, {error, game_not_exist}, State}
+					fail(game_not_exist, State)
 			end;
 		_ ->
-			{reply, {error, not_registered}, State}
+			fail(not_registered, State)
 	end;
 
+%%
+%% Find the GameDetails of the specified game
 handle_call({set_code, GameName, Code}, {ClientPid, _Tag}, State) ->
 	case is_client_registered(State#state.players, ClientPid) of
 		{true, Nick} ->
 			case is_game_registered(State#state.games, GameName) of
 				{true, GameDetails} ->
 					case GameDetails#game.player1 of
-						{ClientPid, Nick} ->
-							%% set player1's code to Code
-							ok;
+						{ClientPid, Nick, _, Probes} ->
+							NewGameDetails = GameDetails#game{player1={ClientPid, Nick, Code, Probes}},
+							ets:insert(State#state.games, {GameName, NewGameDetails}),
+							ok(State);
 						_ ->
 							case GameDetails#game.player2 of
-								{ClientPid, Nick} ->
-									%% set player2's code to Code
-									ok;
+								{ClientPid, Nick, _, Probes} ->
+									NewGameDetails = GameDetails#game{player2={ClientPid, Nick, Code, Probes}},
+									ets:insert(State#state.games, {GameName, NewGameDetails}),
+									ok(State);
 								_ ->
-									{reply, {error, you_arnt_in_the_game}, State}
+									fail(you_arent_in_the_game, State)
 							end
 					end;
 				_ ->
-					{reply, {error, game_not_exist}, State}
+					fail(game_not_exist, State)
 			end;
 		_ ->
-			{reply, {error, not_registered}, State}
+			fail(not_registered, State)
 	end;
 			
 
@@ -238,4 +254,12 @@ is_game_registered(GamesTab, GameName) ->
 			false
 	end.
 
-	
+fail(Reason, State) ->
+	{reply, {fail, Reason}, State}.
+
+ok(State) ->
+	{reply, ok, State}.
+
+ok(Return, State) ->
+	{reply, {ok, Return}, State}.
+
