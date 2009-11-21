@@ -20,62 +20,28 @@
 %% API Functions
 %%
 whoami() ->
-	case server:whoami() of
-		{ok, MyName} ->
-			io:format("You're ~p~n", [MyName]);
-		Response ->
-			print_exception(Response)
-	end.
+	rpc(fun server:whoami/0, [], fun(Result)->io:format("You're ~p~n", [Result]) end).
 
 register(Nick) ->
-    Reply = server:register(Nick),
-    case Reply of
-        ok ->
-            io:format("Registration successful.~n");
-		Response ->
-			print_exception(Response)			
-    end.
+	rpc(fun server:register/1, [Nick], fun()->io:format("Registration successful") end).
 
 show_players() ->
-	case server:show_players() of
-		{ok, Players} -> 
-			io:format("Current players: ~p~n", lists:map(fun({_Pid, Nick})->Nick end, Players));
-		Response ->
-			print_exception(Response)
-	end.
+	rpc(fun server:show_players/0, 
+		[], 
+		fun(Result) ->
+				io:format("~Current Players: ~p~n", lists:map(fun({_Pid, Nick})->Nick end, Result)) end).
 
 create_game(GameName) ->
-	case server:create_game(GameName) of
-		ok ->
-			io:format("~p created~n", [GameName]);
-		Response ->
-			print_exception(Response)
-	end.
+	rpc(fun server:create_game/1, [GameName], fun(Result)->io:format("~p created~n", [Result]) end).
 
 join_game(GameName) ->
-	case server:join_game(GameName) of
-		ok ->
-			io:format("You're now in game ~p~n", [GameName]);
-		Response ->
-			print_exception(Response)
-	end.
+	rpc(fun server:join_game/1, [GameName], fun(Result)->io:format("You're now in game ~p~n", [Result]) end).
 
 show_games() ->
-	case server:show_games() of
-		{ok, Games} -> 
-			io:format("Games: ~p~n", [Games]);
-		Response ->
-			print_exception(Response)
-	end.
+	rpc(fun server:show_games/0, [], fun(Result)->io:format("Games: ~p~n", [Result]) end).
 
 set_code(Game, Code) ->
-	case server:set_code(Game, Code) of
-		ok ->
-			io:format("Your code has been set~n");
-		Response ->
-			print_exception(Response)
-	end.
-
+	rpc(fun server:set_code/2, [Game, Code], fun()->io:format("Your code has been set~n") end).
 		
 %%
 %% Local Functions
@@ -89,3 +55,15 @@ print_exception(Response) ->
 			io:format("Server returns: ~p~n", [Response])
 	end.
 
+rpc(Fun, Args, OnSuccess, OnError) ->
+	case apply(Fun, Args) of
+		ok ->
+			OnSuccess();
+		{ok, Result} ->
+			OnSuccess(Result);
+		{error, Reason} ->
+			OnError(Reason)
+	end.
+
+rpc(Fun, Args, OnSuccess) ->
+	rpc(Fun, Args, OnSuccess, fun print_exception/1).
