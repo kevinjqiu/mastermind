@@ -16,7 +16,9 @@
 -export([start/0, stop/0, 
 		 register/1, show_players/0, whoami/0, 
 		 create_game/1, show_games/0, join_game/1,
-		 set_code/2]).
+		 set_code/2, probe/2]).
+
+%-export([get_digit_list/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -59,7 +61,21 @@ join_game(GameName) ->
 	call({join_game, GameName}).
 
 set_code(GameName, Code) ->
-	call({set_code, GameName, Code}).
+	case sanitize_input(Code) of
+		{ok, SanitizedCode} ->
+			call({set_code, GameName, SanitizedCode});
+		Error ->
+			Error
+	end.
+
+probe(GameName, Code) ->
+	case sanitize_input(Code) of
+		{ok, SanitizedCode} ->
+			call({probe, GameName, SanitizedCode});
+		Error ->
+			Error
+	end.
+
 
 %% ====================================================================
 %% Server functions
@@ -156,6 +172,14 @@ handle_call({set_code, GameName, Code}, {ClientPid, _Tag}, State) ->
 				Error ->
 					fail(Error, State)
 			end;
+		_ ->
+			fail(not_registered, State)
+	end;
+
+handle_call({probe, GameName, Code}, {ClientPid, _Tag}, State) ->
+	case get_details(State, GameName, ClientPid) of
+		{ok, nick, Nick, game, GameDetails} ->
+			ok;
 		_ ->
 			fail(not_registered, State)
 	end;
@@ -278,6 +302,7 @@ set_code(State, GameName, GameDetails, ClientPid, Nick, Code) ->
 		setup ->
 			case GameDetails#game.player1 of
 				{ClientPid, Nick, undefined, 0} ->
+					%% XXX: Set game status to in_progress if necessary
 					NewGameDetails = GameDetails#game{player1={ClientPid, Nick, Code, 0}},
 					alter_gamedetails(State, GameName, NewGameDetails),
 					ok;
@@ -295,6 +320,32 @@ set_code(State, GameName, GameDetails, ClientPid, Nick, Code) ->
 			{error, game_already_started}
 	end.
 
-			
-			
-			
+probe(State, GameName, GameDetails, ClientPid, Nick, Code) ->
+	case GameDetails#game.status of
+		in_progress ->
+			%% XXX: need a way to reuse code between two players
+			ok;
+		_ ->
+			{error, game_not_in_progress}
+	end.
+
+sanitize_input(Code) ->
+	case is_integer(Code) of
+		true ->
+			case ((Code > 999) and (Code < 10000)) of
+				true ->
+					{ok, get_digit_list(Code, [])};
+				false ->
+					{error, code_must_contain_four_digits}
+			end;
+		false ->
+			{error, code_must_be_integer}
+	end.
+
+get_digit_list(Num, DigitList) ->
+	case Num =:= 0 of
+		true ->
+			DigitList;
+		_ ->
+			get_digit_list(Num div 10, DigitList) ++ [Num rem 10]
+	end.

@@ -43,6 +43,9 @@ show_games() ->
 set_code(Game, Code) ->
 	rpc(fun server:set_code/2, [Game, Code], fun()->io:format("Your code has been set~n") end).
 		
+probe(Game, Code) ->
+	rpc(fun server:probe/2, [Game, Code], undefined). % XXX:
+
 %%
 %% Local Functions
 %%
