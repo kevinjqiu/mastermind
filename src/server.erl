@@ -18,7 +18,7 @@
 		 create_game/1, show_games/0, join_game/1,
 		 set_code/2, probe/2]).
 
-%-export([get_digit_list/2]).
+-export([test/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -179,7 +179,13 @@ handle_call({set_code, GameName, Code}, {ClientPid, _Tag}, State) ->
 handle_call({probe, GameName, Code}, {ClientPid, _Tag}, State) ->
 	case get_details(State, GameName, ClientPid) of
 		{ok, nick, Nick, game, GameDetails} ->
-			ok;
+			{ok, result, Result} = probe(State, GameName, GameDetails, ClientPid, Nick, Code),
+			case Result of
+				{4,0} ->
+					ok(you_win, State);
+				_ ->
+					ok(Result, State)
+			end;
 		_ ->
 			fail(not_registered, State)
 	end;
@@ -358,13 +364,37 @@ set_code(State, GameName, GameDetails, ClientPid, Nick, Code) ->
 	end.
 
 probe(State, GameName, GameDetails, ClientPid, Nick, Code) ->
+	IncProbes = fun(Player) ->
+						case Player of
+							{_ClientPid, _Nick, _Code, Probes} ->
+								{_ClientPid, _Nick, _Code, Probes+1};
+							_ ->
+								{error, cant_increment_probes}
+						end
+				end,
+	
 	case GameDetails#game.status of
 		in_progress ->
-			%% XXX: need a way to reuse code between two players
-			ok;
+			case GameDetails#game.player1 of
+				{ClientPid, Nick, TargetCode, _NumOfProbes} ->
+					save_gamedetails(State, GameName, alter_gamedetails(GameDetails, player1, IncProbes(GameDetails#game.player1))),
+					test(TargetCode, Code);
+				_ ->
+					case GameDetails#game.player2 of
+						{ClientPid, Nick, TargetCode, _NumOfProbes} ->
+							save_gamedetails(State, GameName, alter_gamedetails(GameDetails, player2, IncProbes(GameDetails#game.player2))),
+							test(TargetCode, Code);
+						_ ->
+							{error, not_a_player}
+					end
+			end;
 		_ ->
 			{error, game_not_in_progress}
 	end.
+
+test(Target, Code) ->
+	{lists:sum([case lists:nth(I, Target)-lists:nth(I, Code)==0 of true->1; false->0 end || I <- lists:seq(1, length(Target))]),
+	length(sets:to_list(sets:intersection(sets:from_list(Target), sets:from_list(Code))))}.
 
 sanitize_input(Code) ->
 	case is_integer(Code) of
