@@ -25,11 +25,14 @@ if __name__ == '__main__':
     assert all(s in ALPHABET for s in secret)
 
     guess = input("Initial Guess=")
+    num_guess = 0
     while True:
         r = response(secret, guess)
+        num_guess += 1
         print(r)
         if r == (4, 0):
             print("Secret is: %s" % guess)
+            print("It took %s guess(es)" % num_guess)
             break
 
         S = set([s for s in S if response(s, guess) == r])
