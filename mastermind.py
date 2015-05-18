@@ -2,6 +2,7 @@ import sys
 import random
 
 
+NUM_PEGS = 4
 ALPHABET = "123456"
 S = ["%s%s%s%s" % (a, b, c, d)
      for a in ALPHABET for b in ALPHABET
@@ -25,7 +26,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     secret = sys.argv[1]
-    assert len(secret) == 4
+    assert len(secret) == NUM_PEGS
     assert all(s in ALPHABET for s in secret)
 
     guess = sys.argv[2]
@@ -34,7 +35,7 @@ if __name__ == '__main__':
         r = attempt(secret, guess)
         num_guess += 1
         print("Response: %r" % (r,))
-        if r == (4, 0):
+        if r == (NUM_PEGS, 0):
             assert guess == secret, "No, you didn't solve it..."
             print("Secret is: %s" % guess)
             print("It took %s guess" % num_guess)
