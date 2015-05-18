@@ -20,16 +20,7 @@ def attempt(guess, secret):
     return r, w
 
 
-if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("Usage: mastermind.py [secret] [initial_guess]")
-        sys.exit(1)
-
-    secret = sys.argv[1]
-    assert len(secret) == NUM_PEGS
-    assert all(s in ALPHABET for s in secret)
-
-    guess = sys.argv[2]
+def solve(solution_space, secret, guess):
     num_guess = 0
     while True:
         r = attempt(secret, guess)
@@ -40,8 +31,30 @@ if __name__ == '__main__':
             print("Secret is: %s; Took %s guesses" % (guess, num_guess))
             break
 
-        S = [s for s in S if attempt(s, guess) == r]
+        solution_space = [s for s in solution_space if attempt(s, guess) == r]
 
-        print("Possible candidates: %s" % len(S))
-        guess = random.choice(S)
+        print("Possible candidates: %s" % len(solution_space))
+        guess = random.choice(solution_space)
         print("Current guess is: %s" % guess)
+    return num_guess
+
+
+if __name__ == '__main__':
+    # if len(sys.argv) != 3:
+    #     print("Usage: mastermind.py [secret] [initial_guess]")
+    #     sys.exit(1)
+
+    # secret = sys.argv[1]
+    # assert len(secret) == NUM_PEGS
+    # assert all(s in ALPHABET for s in secret)
+
+    # guess = sys.argv[2]
+    # solve(list(S), secret, guess)
+
+    def generate_secret():
+        return "%s%s%s%s" % (random.choice(ALPHABET), random.choice(ALPHABET),
+                             random.choice(ALPHABET), random.choice(ALPHABET))
+
+    NUM = 1000
+    print(sum(
+        [solve(list(S), generate_secret(), "1122") for _ in range(NUM)]) / NUM)
