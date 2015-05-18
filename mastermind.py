@@ -3,9 +3,9 @@ import random
 
 
 ALPHABET = "123456"
-S = set(["%s%s%s%s" % (a, b, c, d)
-         for a in ALPHABET for b in ALPHABET
-         for c in ALPHABET for d in ALPHABET])
+S = ["%s%s%s%s" % (a, b, c, d)
+     for a in ALPHABET for b in ALPHABET
+     for c in ALPHABET for d in ALPHABET]
 
 
 def attempt(guess, secret):
@@ -33,14 +33,15 @@ if __name__ == '__main__':
     while True:
         r = attempt(secret, guess)
         num_guess += 1
-        print(r)
+        print("Response: %r" % (r,))
         if r == (4, 0):
+            assert guess == secret, "No, you didn't solve it..."
             print("Secret is: %s" % guess)
             print("It took %s guess" % num_guess)
             break
 
-        S = set([s for s in S if attempt(s, guess) == r])
+        S = [s for s in S if attempt(s, guess) == r]
 
         print("Possible candidates: %s" % len(S))
-        guess = random.choice(list(S))
+        guess = random.choice(S)
         print("Current guess is: %s" % guess)
