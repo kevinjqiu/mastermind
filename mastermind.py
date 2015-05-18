@@ -37,8 +37,7 @@ if __name__ == '__main__':
         print("Response: %r" % (r,))
         if r == (NUM_PEGS, 0):
             assert guess == secret, "No, you didn't solve it..."
-            print("Secret is: %s" % guess)
-            print("It took %s guess" % num_guess)
+            print("Secret is: %s; Took %s guesses" % (guess, num_guess))
             break
 
         S = [s for s in S if attempt(s, guess) == r]
