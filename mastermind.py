@@ -7,7 +7,7 @@ S = set(["%s%s%s%s" % (a, b, c, d)
          for c in ALPHABET for d in ALPHABET])
 
 
-def response(guess, secret):
+def attempt(guess, secret):
     r, w = 0, 0
     for i in range(len(guess)):
         if guess[i] == secret[i]:
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     guess = input("Initial Guess=")
     num_guess = 0
     while True:
-        r = response(secret, guess)
+        r = attempt(secret, guess)
         num_guess += 1
         print(r)
         if r == (4, 0):
@@ -35,7 +35,7 @@ if __name__ == '__main__':
             print("It took %s guess(es)" % num_guess)
             break
 
-        S = set([s for s in S if response(s, guess) == r])
+        S = set([s for s in S if attempt(s, guess) == r])
 
         print(S)
         guess = random.choice(list(S))
