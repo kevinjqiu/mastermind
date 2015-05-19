@@ -1,4 +1,3 @@
-import sys
 import random
 
 
@@ -39,22 +38,12 @@ def solve(solution_space, secret, guess):
     return num_guess
 
 
+def generate_secret():
+    return "%s%s%s%s" % (random.choice(ALPHABET), random.choice(ALPHABET),
+                         random.choice(ALPHABET), random.choice(ALPHABET))
+
+
 if __name__ == '__main__':
-    # if len(sys.argv) != 3:
-    #     print("Usage: mastermind.py [secret] [initial_guess]")
-    #     sys.exit(1)
-
-    # secret = sys.argv[1]
-    # assert len(secret) == NUM_PEGS
-    # assert all(s in ALPHABET for s in secret)
-
-    # guess = sys.argv[2]
-    # solve(list(S), secret, guess)
-
-    def generate_secret():
-        return "%s%s%s%s" % (random.choice(ALPHABET), random.choice(ALPHABET),
-                             random.choice(ALPHABET), random.choice(ALPHABET))
-
-    NUM = 1000
+    NUM = 5000
     print(sum(
         [solve(list(S), generate_secret(), "1122") for _ in range(NUM)]) / NUM)
