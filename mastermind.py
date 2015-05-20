@@ -44,6 +44,7 @@ def generate_secret():
 
 
 if __name__ == '__main__':
-    NUM = 5000
-    print(sum(
-        [solve(list(S), generate_secret(), "1122") for _ in range(NUM)]) / NUM)
+    # NUM = 1
+    # print(sum(
+    #     [solve(list(S), generate_secret(), "1122") for _ in range(NUM)]) / NUM)
+    solve(list(S), "1234", "1122")

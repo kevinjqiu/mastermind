@@ -77,9 +77,9 @@ func TestValidateGuessRepeatedSymbols(t *testing.T) {
 	var game = Game{
 		NumOfPegs: 4,
 		Symbols:   "1234567890",
-		Secret:    "1134",
+		Secret:    "1234",
 	}
-	assert.Equal(t, game.validateGuess("1012"), Result{1, 1})
+	assert.Equal(t, game.validateGuess("1122"), Result{1, 3})
 }
 
 func TestGenerateSolutionSpace(t *testing.T) {

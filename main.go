@@ -52,23 +52,7 @@ func (game *Game) generateSolutionSpace() []string {
 }
 
 func (game *Game) validateGuess(guess string) Result {
-	var (
-		correctPositions int
-		correctSymbols   int
-	)
-
-	for i, g := range guess {
-		s := rune(game.Secret[i])
-		if g == s {
-			correctPositions += 1
-		} else {
-			if strings.ContainsRune(game.Secret, g) {
-				correctSymbols += 1
-			}
-		}
-	}
-
-	return Result{correctPositions, correctSymbols}
+	return validateGuess(game.Secret, guess)
 }
 
 func (game *Game) Solve() (int, error) {
@@ -82,16 +66,27 @@ func (game *Game) Solve() (int, error) {
 	)
 
 	solutionSpace := game.generateSolutionSpace()
-	fmt.Printf("%s", solutionSpace)
 	guess := game.generateInitialGuess()
 
 	for {
+		fmt.Printf("|solution_space| = %d\n", len(solutionSpace))
+		fmt.Printf("guess = %s\n", guess)
+
 		result = game.validateGuess(guess)
 		numGuesses += 1
-		fmt.Printf("%s", result)
-	}
 
-	return 0, nil
+		fmt.Printf("result = %s\n", result)
+
+		if result[0] == game.NumOfPegs {
+			return numGuesses, nil
+		}
+		solutionSpace = eliminateSolutionSpace(solutionSpace, result, guess)
+		if len(solutionSpace) > 0 {
+			guess = solutionSpace[0]
+		} else {
+			panic("No candidate solution left.\n")
+		}
+	}
 }
 
 func main() {
@@ -112,7 +107,7 @@ func main() {
 		fmt.Printf("%s", err)
 		os.Exit(-2)
 	} else {
-		fmt.Printf("Solved in %s steps", numSteps)
+		fmt.Printf("Solved in %s steps\n", numSteps)
 		os.Exit(0)
 	}
 }
@@ -142,4 +137,36 @@ func cartesianProduct(sets []string) []string {
 	}
 
 	return result
+}
+
+func validateGuess(secret string, guess string) Result {
+	var (
+		correctPositions int
+		correctSymbols   int
+	)
+
+	for i, g := range guess {
+		s := rune(secret[i])
+		if g == s {
+			correctPositions += 1
+		} else {
+			if strings.ContainsRune(secret, g) {
+				correctSymbols += 1
+			}
+		}
+	}
+
+	return Result{correctPositions, correctSymbols}
+}
+
+func eliminateSolutionSpace(solutionSpace []string, result Result, guess string) []string {
+	retval := []string{}
+	for _, candidate := range solutionSpace {
+		if validateGuess(candidate, guess) == result {
+			fmt.Println(candidate)
+			retval = append(retval, candidate)
+		}
+	}
+
+	return retval
 }
