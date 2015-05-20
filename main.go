@@ -3,14 +3,20 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 )
 
 // A Result is a pair of integers indicating:
 // - the number of correct symbols and positions
 // - the number of correct symbols (but wrong position)
 type Result [2]int
+
+func (r Result) ToString() string {
+	return fmt.Sprintf("(%d, %d)", r[0], r[1])
+}
 
 // This is the structure representing a mastermind game
 type Game struct {
@@ -75,18 +81,24 @@ func (game *Game) Solve() (int, error) {
 		result = game.validateGuess(guess)
 		numGuesses += 1
 
-		fmt.Printf("result = %s\n", result)
+		fmt.Printf("result = %s\n", result.ToString())
 
 		if result[0] == game.NumOfPegs {
 			return numGuesses, nil
 		}
 		solutionSpace = eliminateSolutionSpace(solutionSpace, result, guess)
 		if len(solutionSpace) > 0 {
-			guess = solutionSpace[0]
+			guess = game.chooseCandidate(solutionSpace)
 		} else {
 			panic("No candidate solution left.\n")
 		}
 	}
+}
+
+func (game *Game) chooseCandidate(solutionSpace []string) string {
+	rand.Seed(time.Now().Unix())
+	r := rand.Intn(len(solutionSpace))
+	return solutionSpace[r]
 }
 
 func main() {
@@ -104,10 +116,10 @@ func main() {
 	}
 
 	if numSteps, err := game.Solve(); err != nil {
-		fmt.Printf("%s", err)
+		fmt.Println(err)
 		os.Exit(-2)
 	} else {
-		fmt.Printf("Solved in %s steps\n", numSteps)
+		fmt.Printf("Solved in %d steps\n", numSteps)
 		os.Exit(0)
 	}
 }
@@ -163,7 +175,6 @@ func eliminateSolutionSpace(solutionSpace []string, result Result, guess string)
 	retval := []string{}
 	for _, candidate := range solutionSpace {
 		if validateGuess(candidate, guess) == result {
-			fmt.Println(candidate)
 			retval = append(retval, candidate)
 		}
 	}
