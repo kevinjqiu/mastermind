@@ -92,3 +92,27 @@ func TestGenerateSolutionSpace(t *testing.T) {
 		[]string{"11", "21", "31", "12", "22", "32", "13", "23", "33"},
 	)
 }
+
+func TestGenerateInitialGuess(t *testing.T) {
+	var game = Game{
+		NumOfPegs: 2,
+		Symbols:   "123",
+	}
+	assert.Equal(t, game.generateInitialGuess(), "12")
+}
+
+func TestGenerateInitialGuessFourPegs(t *testing.T) {
+	var game = Game{
+		NumOfPegs: 4,
+		Symbols:   "123",
+	}
+	assert.Equal(t, game.generateInitialGuess(), "1122")
+}
+
+func TestGenerateInitialGuessThreePegs(t *testing.T) {
+	var game = Game{
+		NumOfPegs: 3,
+		Symbols:   "123",
+	}
+	assert.Equal(t, game.generateInitialGuess(), "112")
+}

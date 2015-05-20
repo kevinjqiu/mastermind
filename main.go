@@ -33,7 +33,14 @@ func (game *Game) validateSecret() error {
 }
 
 func (game *Game) generateInitialGuess() string {
-	return ""
+	var guess []rune
+	for i := 0; i < (game.NumOfPegs+1)/2; i++ {
+		guess = append(guess, rune(game.Symbols[0]))
+	}
+	for i := 0; i < game.NumOfPegs/2; i++ {
+		guess = append(guess, rune(game.Symbols[1]))
+	}
+	return string(guess)
 }
 
 func cartesianProduct(sets []string) []string {
