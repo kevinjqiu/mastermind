@@ -9,6 +9,8 @@
 
 A [Golang](http://golang.org/) implementation of the solution to the [MasterMind](http://en.wikipedia.org/wiki/Mastermind_%28board_game%29) game.
 
+[![Build Status](https://travis-ci.org/kevinjqiu/mastermind.svg)](https://travis-ci.org/kevinjqiu/mastermind)
+
 Usage
 =====
 
