@@ -37,6 +37,8 @@ func (game *Game) generateInitialGuess() string {
 }
 
 func cartesianProduct(sets []string) []string {
+	// Transliterated from:
+	// http://stackoverflow.com/questions/2419370/how-can-i-compute-a-cartesian-product-iteratively
 	var (
 		i      int
 		j      int
