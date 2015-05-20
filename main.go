@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 )
@@ -31,13 +32,47 @@ func (game *Game) validateSecret() error {
 	return nil
 }
 
-func (game *Game) generateInitialGuess() {
+func (game *Game) generateInitialGuess() string {
+	return ""
+}
+
+func cartesianProduct(sets []string) []string {
+	var (
+		i      int
+		j      int
+		item   []rune
+		result []string
+	)
+
+	for {
+		item = []rune{}
+		j = i
+		for _, str := range sets {
+			item = append(item, rune(str[int(math.Mod(float64(j), float64(len(str))))]))
+			j /= len(str)
+		}
+		if j > 0 {
+			break
+		}
+		result = append(result, string(item))
+		i += 1
+	}
+
+	return result
+}
+
+func (game *Game) generateSolutionSpace() []string {
+	sets := make([]string, game.NumOfPegs)
+	for i := 0; i < game.NumOfPegs; i++ {
+		sets[i] = game.Symbols
+	}
+	return cartesianProduct(sets)
 }
 
 func (game *Game) validateGuess(guess string) Result {
 	var (
-		correctPositions = 0
-		correctSymbols   = 0
+		correctPositions int
+		correctSymbols   int
 	)
 
 	for i, g := range guess {
@@ -58,6 +93,22 @@ func (game *Game) Solve() (int, error) {
 	if err := game.validateSecret(); err != nil {
 		return 0, err
 	}
+
+	var (
+		result     Result
+		numGuesses int
+	)
+
+	solutionSpace := game.generateSolutionSpace()
+	fmt.Printf("%s", solutionSpace)
+	guess := game.generateInitialGuess()
+
+	for {
+		result = game.validateGuess(guess)
+		numGuesses += 1
+		fmt.Printf("%s", result)
+	}
+
 	return 0, nil
 }
 
