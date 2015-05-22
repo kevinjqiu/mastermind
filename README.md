@@ -41,8 +41,12 @@ e.g., if your secret is 1234:
 
 You can also build the binary:
 
-    go build
+    go build -o mm
+
+or simply use the Makefile:
+
+    make build
 
 and invoke it:
 
-    ./mastermind 1234
+    ./mm 1234
