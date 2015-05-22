@@ -1,5 +1,5 @@
 test:
-	go test ./...
+	go test -v ./...
 build: test
 	go build -o mm
 run: build
